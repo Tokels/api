@@ -81,9 +81,8 @@ const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
       (user) => user.email === email && user.password === password
     );
     if (user) {
-      const { password: _, ...u } = user;
       const token: Token = "valid-token";
-      res.json({ ...u, token });
+      res.json({ token });
     } else {
       Logging.warning("[server]: Bad Request: credentials don't match");
       res.status(400).json({ err: "Credentials don't match" });
@@ -112,13 +111,12 @@ const createUser = async (req: Request, res: Response, next: NextFunction) => {
     }
     const id = v4();
     const token: Token = "valid-token";
-    const newUser = { id, email, password, token };
+    const newUser = { id, email, password };
     users.push(newUser);
     writeFile("users", users);
-    const { password: _, ...user } = newUser;
     Logging.process("🎉 [server]: User created");
-    Logging.process("🚀 [server]: User sent to client");
-    return res.json(user);
+    Logging.process("🚀 [server]: Valid token sent to client");
+    return res.json({ token });
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
       Logging.error(`[server]: ${err.message}`);
