@@ -3,9 +3,7 @@ import { Auth, Token, initAuth } from "../models/User";
 import fs from "fs";
 import path from "path";
 import { v4 } from "uuid";
-import { stringify } from "querystring";
 import Logging from "../lib/Logging";
-import { logRequest } from "../middleware";
 import { Collections } from "../models/Collections";
 
 const uuidRegex =
@@ -70,10 +68,7 @@ const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
       Logging.warning(
         "[server]: Bad Request: missing email & password from client"
       );
-      return res
-        .status(400)
-        .json({ err: "Please provide both email & passowrd" })
-        .end();
+      return res.status(400).json("Please provide both email & passowrd").end();
     }
     Logging.process("👮 [server]: Authenticating User");
     const users = readFile("users");
@@ -81,14 +76,17 @@ const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
       (user) => user.email === email && user.password === password
     );
     if (user) {
-      const token: Token = "valid-token";
-      res.json({ token });
+      Logging.process("🎉 [server]: Credentials matched!");
+      Logging.process("🚀 [server]: Sending token to client");
+      return res.json("valid-token");
     } else {
       Logging.warning("[server]: Bad Request: credentials don't match");
-      res.status(400).json({ err: "Credentials don't match" });
+      return res.status(400).json("Credentials don't match");
     }
-    res.json(user);
-  } catch {}
+  } catch (err: any) {
+    Logging.error(err.message);
+    return res.status(500).json(err.message).end();
+  }
 };
 
 const createUser = async (req: Request, res: Response, next: NextFunction) => {
@@ -98,32 +96,28 @@ const createUser = async (req: Request, res: Response, next: NextFunction) => {
       Logging.warning(
         "[server]: Bad Request: missing email & password from client"
       );
-      return res
-        .status(400)
-        .json({ err: "Please provide both email & passowrd" })
-        .end();
+      return res.status(400).json("Please provide both email & passowrd").end();
     }
     Logging.process("🔍 [server]: Creating User");
     const users = readFile("users");
     if (users.find((user) => user.email === email)) {
       Logging.warning("[server]: Bad Request: email already exists");
-      return res.status(400).json({ err: "Email already exists" }).end();
+      return res.status(400).json("Email already exists").end();
     }
     const id = v4();
-    const token: Token = "valid-token";
     const newUser = { id, email, password };
     users.push(newUser);
     writeFile("users", users);
     Logging.process("🎉 [server]: User created");
     Logging.process("🚀 [server]: Valid token sent to client");
-    return res.json({ token });
+    return res.json("valid-token");
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
       Logging.error(`[server]: ${err.message}`);
-      return res.status(500).json({ err: err.message }).end();
+      return res.status(500).json(err.message).end();
     }
     Logging.warning(`[server]: ${err.message}`);
-    return res.status(400).json({ err: err.message }).end();
+    return res.status(400).json(err.message).end();
   }
 };
 
@@ -144,10 +138,10 @@ const readUser = (req: Request, res: Response, next: NextFunction) => {
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
       Logging.error(`[server]: ${err.message}`);
-      return res.status(500).json({ err: err.message }).end();
+      return res.status(500).json(err.message).end();
     }
     Logging.warning(`[server]: ${err.message}`);
-    return res.status(400).json({ err: err.message }).end();
+    return res.status(400).json(err.message).end();
   }
 };
 
@@ -185,10 +179,10 @@ const updateUser = async (req: Request, res: Response, next: NextFunction) => {
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
       Logging.error(`[server]: ${err.message}`);
-      return res.status(500).json({ err: err.message }).end();
+      return res.status(500).json(err.message).end();
     }
     Logging.warning(`[server]: ${err.message}`);
-    return res.status(400).json({ err: err.message }).end();
+    return res.status(400).json(err.message).end();
   }
 };
 
@@ -206,10 +200,10 @@ const deleteUser = (req: Request, res: Response, next: NextFunction) => {
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
       Logging.error(`[server]: ${err.message}`);
-      return res.status(500).json({ err: err.message }).end();
+      return res.status(500).json(err.message).end();
     }
     Logging.warning(`[server]: ${err.message}`);
-    return res.status(400).json({ err: err.message }).end();
+    return res.status(400).json(err.message).end();
   }
 };
 
