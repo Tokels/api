@@ -1,67 +1,19 @@
 import { NextFunction, Request, Response } from "express";
-import { Auth, Token, initAuth } from "../models/User";
-import fs from "fs";
-import path from "path";
+import { Auth, initAuth } from "../models/Auth";
 import { v4 } from "uuid";
 import Logging from "../lib/Logging";
-import { Collections } from "../models/Collections";
+import { readFile, writeFile } from "../lib/Filesystem";
+import { validateID } from "../utils/validators";
 
-const uuidRegex =
-  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-
-const readFile = (collection: Collections): Array<Auth> => {
-  const data = fs.readFileSync(
-    path.join(__dirname, `../../src/data/${collection}.json`),
-    "utf8"
-  );
-  Logging.process("📖 [server]: Reading database");
-  if (data) {
-    return JSON.parse(data);
-  } else {
-    throw new Error("Database is empty");
+const findAuth = (users: Auth[], id: string): Auth => {
+  const auth = users.find((auth) => auth.id === id);
+  if (!auth) {
+    throw new Error("Invalid ID: Can't find auth");
   }
+  return auth;
 };
 
-const writeFile = (collection: Collections, data: Auth[]) => {
-  try {
-    if (
-      !fs.existsSync(path.join(__dirname, `../../src/data/${collection}.json`))
-    ) {
-      throw new Error(
-        `Internal servor error: the ${collection} collection does not exist`
-      );
-    }
-    fs.writeFileSync(
-      path.join(__dirname, `../../src/data/${collection}.json`),
-      JSON.stringify(data),
-      "utf8"
-    );
-    Logging.process("📝 [server]: Writing in database");
-    return;
-  } catch (err: any) {
-    Logging.error(err.message);
-    throw err;
-  }
-};
-
-const validateID = (id: string) => {
-  if (!id) {
-    throw Error("Please provide user ID as url params");
-  }
-  if (!uuidRegex.test(id)) {
-    throw Error("Please provide valid ID");
-  }
-};
-
-const findUser = (users: Auth[], id: string): Auth => {
-  const user = users.find((user) => user.id === id);
-  if (!user) {
-    throw new Error("Invalid ID: Can't find user");
-  }
-  return user;
-};
-
-const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
+const authenticateAuth = (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
   try {
     if (!email && !password) {
@@ -70,12 +22,12 @@ const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
       );
       return res.status(400).json("Please provide both email & passowrd").end();
     }
-    Logging.process("👮 [server]: Authenticating User");
+    Logging.process("👮 [server]: Authenticating Auth");
     const users = readFile("users");
-    const user = users.find(
-      (user) => user.email === email && user.password === password
+    const auth = users.find(
+      (auth) => auth.email === email && auth.password === password
     );
-    if (user) {
+    if (auth) {
       Logging.process("🎉 [server]: Credentials matched!");
       Logging.process("🚀 [server]: Sending token to client");
       return res.json("valid-token");
@@ -89,7 +41,7 @@ const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-const createUser = async (req: Request, res: Response, next: NextFunction) => {
+const createAuth = async (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
   try {
     if (!email && !password) {
@@ -98,17 +50,17 @@ const createUser = async (req: Request, res: Response, next: NextFunction) => {
       );
       return res.status(400).json("Please provide both email & passowrd").end();
     }
-    Logging.process("🔍 [server]: Creating User");
+    Logging.process("🔍 [server]: Creating Auth");
     const users = readFile("users");
-    if (users.find((user) => user.email === email)) {
+    if (users.find((auth) => auth.email === email)) {
       Logging.warning("[server]: Bad Request: email already exists");
       return res.status(400).json("Email already exists").end();
     }
     const id = v4();
-    const newUser = { id, email, password };
-    users.push(newUser);
+    const newAuth = { id, email, password };
+    users.push(newAuth);
     writeFile("users", users);
-    Logging.process("🎉 [server]: User created");
+    Logging.process("🎉 [server]: Auth created");
     Logging.process("🚀 [server]: Valid token sent to client");
     return res.json("valid-token");
   } catch (err: any) {
@@ -121,19 +73,19 @@ const createUser = async (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-const readUser = (req: Request, res: Response, next: NextFunction) => {
+const readAuth = (req: Request, res: Response, next: NextFunction) => {
   const { _id: id } = req.params;
-  Logging.process("🔍 [server]: Searching for User");
+  Logging.process("🔍 [server]: Searching for Auth");
   try {
     validateID(id);
     const data = readFile("users");
-    const user = data.find((user) => user.id === id);
-    if (!user) {
-      throw new Error("Could'nt find User");
+    const auth = data.find((auth) => auth.id === id);
+    if (!auth) {
+      throw new Error("Could'nt find Auth");
     }
-    Logging.process("🎉 [server]: Found User");
-    const { password: _, ...u } = user;
-    Logging.process("🚀 [server]: User sent to client");
+    Logging.process("🎉 [server]: Found Auth");
+    const { password: _, ...u } = auth;
+    Logging.process("🚀 [server]: Auth sent to client");
     return res.json(u);
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
@@ -145,7 +97,7 @@ const readUser = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-const updateUser = async (req: Request, res: Response, next: NextFunction) => {
+const updateAuth = async (req: Request, res: Response, next: NextFunction) => {
   const { _id: id } = req.params;
   const body = req.body;
   try {
@@ -163,18 +115,18 @@ const updateUser = async (req: Request, res: Response, next: NextFunction) => {
       }
     });
     const users = readFile("users");
-    const user = findUser(users, id);
-    const newUsers = users.map((user) => {
-      if (user.id === id) {
+    const auth = findAuth(users, id);
+    const newAuths = users.map((auth) => {
+      if (auth.id === id) {
         if (users.find((u) => u.email === body.email && u.id !== id)) {
           throw new Error("Email already exists");
         }
-        return { ...user, ...body };
+        return { ...auth, ...body };
       }
-      return user;
+      return auth;
     });
-    writeFile("users", newUsers);
-    const { password: _, ...u } = user;
+    writeFile("users", newAuths);
+    const { password: _, ...u } = auth;
     return res.json(u);
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
@@ -186,17 +138,16 @@ const updateUser = async (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-const deleteUser = (req: Request, res: Response, next: NextFunction) => {
+const deleteAuth = (req: Request, res: Response, next: NextFunction) => {
   const { _id: id } = req.params;
-
   try {
     validateID(id);
     const users = readFile("users");
-    const user = findUser(users, id);
-    const index = users.indexOf(user);
+    const auth = findAuth(users, id);
+    const index = users.indexOf(auth);
     users.splice(index, 1);
     writeFile("users", users);
-    return res.json({ msg: "Successfully deleted user" });
+    return res.json({ msg: "Successfully deleted auth" });
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
       Logging.error(`[server]: ${err.message}`);
@@ -208,9 +159,9 @@ const deleteUser = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export default {
-  createUser,
-  readUser,
-  updateUser,
-  deleteUser,
-  authenticateUser,
+  createAuth,
+  readAuth,
+  updateAuth,
+  deleteAuth,
+  authenticateAuth,
 };
