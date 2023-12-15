@@ -2,11 +2,11 @@ import { NextFunction, Request, Response } from "express";
 import { Auth, initAuth } from "../models/Auth";
 import { v4 } from "uuid";
 import Logging from "../lib/Logging";
-import { readFile, writeFile } from "../lib/Filesystem";
+import { readAuthFile, writeAuthFile } from "../lib/Filesystem";
 import { validateID } from "../utils/validators";
 
-const findAuth = (users: Auth[], id: string): Auth => {
-  const auth = users.find((auth) => auth.id === id);
+const findAuth = (auths: Auth[], id: string): Auth => {
+  const auth = auths.find((auth) => auth.id === id);
   if (!auth) {
     throw new Error("Invalid ID: Can't find auth");
   }
@@ -23,8 +23,8 @@ const authenticateAuth = (req: Request, res: Response, next: NextFunction) => {
       return res.status(400).json("Please provide both email & passowrd").end();
     }
     Logging.process("👮 [server]: Authenticating Auth");
-    const users = readFile("users");
-    const auth = users.find(
+    const auths = readAuthFile();
+    const auth = auths.find(
       (auth) => auth.email === email && auth.password === password
     );
     if (auth) {
@@ -51,15 +51,15 @@ const createAuth = async (req: Request, res: Response, next: NextFunction) => {
       return res.status(400).json("Please provide both email & passowrd").end();
     }
     Logging.process("🔍 [server]: Creating Auth");
-    const users = readFile("users");
-    if (users.find((auth) => auth.email === email)) {
+    const auths = readAuthFile();
+    if (auths.find((auth) => auth.email === email)) {
       Logging.warning("[server]: Bad Request: email already exists");
       return res.status(400).json("Email already exists").end();
     }
     const id = v4();
     const newAuth = { id, email, password };
-    users.push(newAuth);
-    writeFile("users", users);
+    auths.push(newAuth);
+    writeAuthFile(auths);
     Logging.process("🎉 [server]: Auth created");
     Logging.process("🚀 [server]: Valid token sent to client");
     return res.json("valid-token");
@@ -78,8 +78,8 @@ const readAuth = (req: Request, res: Response, next: NextFunction) => {
   Logging.process("🔍 [server]: Searching for Auth");
   try {
     validateID(id);
-    const data = readFile("users");
-    const auth = data.find((auth) => auth.id === id);
+    const auths = readAuthFile();
+    const auth = auths.find((auth) => auth.id === id);
     if (!auth) {
       throw new Error("Could'nt find Auth");
     }
@@ -114,18 +114,18 @@ const updateAuth = async (req: Request, res: Response, next: NextFunction) => {
         );
       }
     });
-    const users = readFile("users");
-    const auth = findAuth(users, id);
-    const newAuths = users.map((auth) => {
-      if (auth.id === id) {
-        if (users.find((u) => u.email === body.email && u.id !== id)) {
+    const auths = readAuthFile();
+    const auth = findAuth(auths as Auth[], id);
+    const newAuths = auths.map((auth) => {
+      if ((auth as Auth).id === id) {
+        if (auths.find((u) => u.email === body.email && u.id !== id)) {
           throw new Error("Email already exists");
         }
         return { ...auth, ...body };
       }
       return auth;
     });
-    writeFile("users", newAuths);
+    writeAuthFile(newAuths);
     const { password: _, ...u } = auth;
     return res.json(u);
   } catch (err: any) {
@@ -142,11 +142,11 @@ const deleteAuth = (req: Request, res: Response, next: NextFunction) => {
   const { _id: id } = req.params;
   try {
     validateID(id);
-    const users = readFile("users");
-    const auth = findAuth(users, id);
-    const index = users.indexOf(auth);
-    users.splice(index, 1);
-    writeFile("users", users);
+    const auths = readAuthFile();
+    const auth = findAuth(auths as Auth[], id);
+    const index = auths.indexOf(auth);
+    auths.splice(index, 1);
+    writeAuthFile(auths);
     return res.json({ msg: "Successfully deleted auth" });
   } catch (err: any) {
     if (err && err.code === "ENOENT") {
