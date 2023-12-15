@@ -1,1 +1,1 @@
-export type Collections = "users" | "user";
+export type Collections = "users" | "auth";

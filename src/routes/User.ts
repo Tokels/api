@@ -1,14 +1,14 @@
 import express from "express";
-import controller from "../controllers/User";
+import controller from "../controllers/Auth";
 
 const router = express.Router();
 
 // prettier-ignore
 router
-    .post('/authenticate', controller.authenticateUser)
-    .post('/', controller.createUser)
-    .get('/:_id', controller.readUser)
-    .patch('/:_id', controller.updateUser)
-    .delete('/:_id', controller.deleteUser)
+    .post('/authenticate', controller.authenticateAuth)
+    .post('/', controller.createAuth)
+    .get('/:_id', controller.readAuth)
+    .patch('/:_id', controller.updateAuth)
+    .delete('/:_id', controller.deleteAuth)
 
 export default router;
